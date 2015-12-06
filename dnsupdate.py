@@ -2,6 +2,7 @@ import dreampylib
 import config
 import sys
 import httplib
+from datetime import datetime
 
 def print_err(msg):
 	sys.stderr.write(msg)
@@ -42,34 +43,28 @@ def get_ip_address():
 		conn.request("GET", "/ip.php")
 		resp = conn.getresponse()
 		if resp.status != 200:
-			return None
+			raise Exception('Could not retrieve IP address. Server returned ' + str(resp.status))
 		data = resp.read()
 		return data
 	except:
-		return None
+		raise Exception('Failed to retrieve IP address.')
 
 def check_service_up(ip_str):
-	try:
-		headers = {"Host": "DNS_CHECK.paulsanford.int"}
-		conn = httplib.HTTPConnection(ip_str)
-		conn.request("GET", "/DNS_CHECK", "", headers)
-		resp = conn.getresponse()
-		if resp.status != 200:
-			return False
-		data = resp.read()
-		if data.strip() != "PS NETWORK OK":
-			return False
-	except:
-		print("Exception")
-		return False
-	return True
+	headers = {"Host": "DNS_CHECK.paulsanford.int"}
+	conn = httplib.HTTPConnection(ip_str)
+	conn.request("GET", "/DNS_CHECK", "", headers)
+	resp = conn.getresponse()
+	if resp.status != 200:
+		raise Exception('DNS Check failed. Status: ' + str(resp.status))
+	data = resp.read()
+	if data.strip() != "PS NETWORK OK":
+		raise Exception('Wrong data returned from DNS Check: ' + data.strip())
 
 def check_commands(connection):
 	if not check_commands_avail(connection, ["dns-add_record", "dns-list_records", "dns-remove_record"]):
 		raise Exception('No access to appropriate dns commands.')
 
-def get_dns_records():
-	connection = get_connection()
+def get_dns_records(connection):
 	check_commands(connection)
 	return connection.dns.list_records()
 
@@ -85,39 +80,33 @@ def filter_dns_records_by_zone(records, zone):
 def should_update_record(record, ip_addr):
 	return record == None or record['value'].strip() != ip_addr.strip()
 
+def update_record(connection, rec, name, zone, ip_addr):
+	if rec:
+		res = connection.dns.remove_record(record = rec['record'], type=rec['type'], value=rec['value'])
+		print(res)
+	new_record = name + '.' + zone
+	new_type = 'A'
+	value = ip_addr.strip()
+	comment = ''
+	if rec:
+		comment = comment + 'Updated '
+	else:
+		comment = comment + 'Added '
+	comment = comment + 'by PS AutoDNS at '
+	comment = comment + datetime.now().isoformat()
+	res = connection.dns.add_record(record=new_record, type=new_type, value=value, comment=comment)
+	print(res)
 
 if __name__ == '__main__':
 	try:
 		ip_addr = get_ip_address()
-		recs = get_dns_records()
+		check_service_up(ip_addr)
+		connection = get_connection()
+		recs = get_dns_records(connection)
 		for sub in config.subdomains:
 			sub_rec = get_a_rec_for_zone(recs, sub['name'], sub['zone'])
 			if should_update_record(sub_rec, ip_addr):
-				print('Updating ' + sub['name'] + ' for zone ' + sub['zone'])
+				update_record(connection, sub_rec, sub['name'], sub['zone'], ip_addr)
 	except Exception as e:
 		if e.args and len(e.args) > 0:
 			print_err(e.args[0])
-
-if __name__ == '__main__b':
-	ip_addr = get_ip_address()
-	print("IP Address: " + ip_addr)
-	print("Is host up: " + "yes" if check_service_up(ip_addr) else "no")
-
-if __name__ == '__main__a':
-	connection = dreampylib.DreampyLib(config.user, config.key)
-	if connection.IsConnected():
-		if not check_commands_avail(connection, ["dns-add_record", "dns-list_records", "dns-remove_record"]):
-			print_err("No access to appropriate dns commands.")
-
-		recs = connection.dns.list_records()
-
-		if len(sys.argv) <= 2:
-			filtered_recs = [x for x in recs if x['zone'] == 'paulsanford.net']
-
-			print('Found ' + str(len(filtered_recs)) + ' records')
-		else:
-			rec = get_a_rec_for_zone(recs, sys.argv[1], sys.argv[2])
-			if rec:
-				print(rec)
-			else:
-				print('Record not found')
