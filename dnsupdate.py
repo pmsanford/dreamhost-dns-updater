@@ -4,6 +4,8 @@ import sys
 import httplib
 from datetime import datetime
 
+version = '0.0.1'
+
 def print_err(msg):
 	sys.stderr.write(msg)
 
@@ -39,8 +41,8 @@ def get_a_rec_for_zone(records, name, zone):
 
 def get_ip_address():
 	try:
-		conn = httplib.HTTPConnection("paulsanford.net")
-		conn.request("GET", "/ip.php")
+		conn = httplib.HTTPConnection(config.ip_check_hostname)
+		conn.request("GET", config.ip_check_path)
 		resp = conn.getresponse()
 		if resp.status != 200:
 			raise Exception('Could not retrieve IP address. Server returned ' + str(resp.status))
@@ -50,14 +52,14 @@ def get_ip_address():
 		raise Exception('Failed to retrieve IP address.')
 
 def check_service_up(ip_str):
-	headers = {"Host": "DNS_CHECK.paulsanford.int"}
+	headers = {"Host": config.dns_check_host}
 	conn = httplib.HTTPConnection(ip_str)
-	conn.request("GET", "/DNS_CHECK", "", headers)
+	conn.request("GET", config.dns_check_path, "", headers)
 	resp = conn.getresponse()
 	if resp.status != 200:
 		raise Exception('DNS Check failed. Status: ' + str(resp.status))
 	data = resp.read()
-	if data.strip() != "PS NETWORK OK":
+	if data.strip() != config.dns_check_response:
 		raise Exception('Wrong data returned from DNS Check: ' + data.strip())
 
 def check_commands(connection):
@@ -92,7 +94,7 @@ def update_record(connection, rec, name, zone, ip_addr):
 		comment = comment + 'Updated '
 	else:
 		comment = comment + 'Added '
-	comment = comment + 'by PS AutoDNS at '
+	comment = comment + 'by PS AutoDNS ' + version + ' at '
 	comment = comment + datetime.now().isoformat()
 	res = connection.dns.add_record(record=new_record, type=new_type, value=value, comment=comment)
 	print(res)
