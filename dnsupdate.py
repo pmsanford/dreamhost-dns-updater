@@ -112,3 +112,5 @@ if __name__ == '__main__':
 	except Exception as e:
 		if e.args and len(e.args) > 0:
 			print_err(e.args[0])
+		else:
+			print_err(str(e))
