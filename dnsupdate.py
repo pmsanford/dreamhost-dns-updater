@@ -3,6 +3,7 @@ import config
 import sys
 import httplib
 from datetime import datetime
+import socket
 
 version = '0.0.1'
 
@@ -82,11 +83,16 @@ def filter_dns_records_by_zone(records, zone):
 def should_update_record(record, ip_addr):
 	return record == None or record['value'].strip() != ip_addr.strip()
 
+def get_hostname(name, zone):
+	if name[-1] == '.':
+		return name + zone
+	else:
+		return name + '.' + zone
+
 def update_record(connection, rec, name, zone, ip_addr):
 	if rec:
 		res = connection.dns.remove_record(record = rec['record'], type=rec['type'], value=rec['value'])
-		print(res)
-	new_record = name + '.' + zone
+	new_record = get_hostname(name, zone)
 	new_type = 'A'
 	value = ip_addr.strip()
 	comment = ''
@@ -97,7 +103,6 @@ def update_record(connection, rec, name, zone, ip_addr):
 	comment = comment + 'by PS AutoDNS ' + version + ' at '
 	comment = comment + datetime.now().isoformat()
 	res = connection.dns.add_record(record=new_record, type=new_type, value=value, comment=comment)
-	print(res)
 
 if __name__ == '__main__':
 	try:
