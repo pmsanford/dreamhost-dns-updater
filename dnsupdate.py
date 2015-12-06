@@ -3,7 +3,6 @@ import config
 import sys
 import httplib
 from datetime import datetime
-import socket
 
 version = '0.0.1'
 
